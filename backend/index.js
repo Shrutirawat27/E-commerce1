@@ -12,17 +12,24 @@ const port = process.env.PORT || 3000;
 const Product = require('./src/products/products.model');
 
 // Middleware setup
-const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://localhost:5175'];
+const allowedOrigins = [
+  'http://localhost:5173', 
+  'http://localhost:5174', 
+  'http://localhost:3000', 
+  'http://localhost:5175',
+  'https://ecommerce-frontend.onrender.com' // Render frontend URL
+];
+
 app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps, curl, Postman)
     if(!origin) return callback(null, true);
     
-    if(allowedOrigins.indexOf(origin) === -1) {
+    // Allow all Render domains for seamless deployment
+    if(allowedOrigins.indexOf(origin) === -1 && !origin.endsWith('.onrender.com')) {
       console.log('Origin allowed:', origin);
-      // Allow this origin anyway to fix CORS issues
-      return callback(null, true);
     }
+    // Always allow to prevent CORS issues during deployment
     return callback(null, true);
   },
   credentials: true,
@@ -121,10 +128,20 @@ async function main() {
 
 main().catch(err => console.error("MongoDB Connection Error:", err));
 
-app.get('/', (req, res) => {
-  res.send('Hello World!');
-});
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  // Serve any static files from the frontend build directory
+  app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
+  // For any other route, send the index.html file
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.send('Server is running in development mode');
+  });
+}
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

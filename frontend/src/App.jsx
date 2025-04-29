@@ -3,16 +3,16 @@ import './App.css'
 import { Outlet } from 'react-router-dom';
 import Navbar from './components/Navbar'
 import Footer from './components/Footer';
-import AdminLogin from '@admin/components/AdminLogin'; 
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function App() {
   return (
     <>
+      <ToastContainer position="top-right" autoClose={3000} />
     <Navbar/>
       <Outlet/>
       <Footer/>
-      
-      
     </>
   )
 }

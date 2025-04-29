@@ -110,11 +110,27 @@ const authApi = createApi({
       invalidatesTags: ["User"],
     }),
     editProfile: builder.mutation({
-      query: (profileData) => ({
-        url: `/edit-profile`,
-        method: "PATCH",
-        body: profileData,
-      }),
+      query: (profileData) => {
+        // Check if profileData is FormData (for file uploads)
+        const isFormData = profileData instanceof FormData;
+        console.log('Is FormData:', isFormData);
+        
+        return {
+          url: `/edit-profile`,
+          method: "PATCH",
+          // Don't set Content-Type header for FormData, the browser will set it with the boundary
+          headers: isFormData ? undefined : {
+            'Content-Type': 'application/json',
+          },
+          body: profileData,
+          formData: isFormData,
+        };
+      },
+      // Add error handling
+      transformErrorResponse: (response) => {
+        console.log('Profile update error response:', response);
+        return response;
+      },
     }),
   }),
 });

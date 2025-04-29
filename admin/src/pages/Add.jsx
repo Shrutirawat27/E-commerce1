@@ -3,6 +3,7 @@ import { assets } from '../assets/assets';
 import axios from 'axios';
 import { backendUrl } from '../App';
 import { toast } from 'react-toastify';
+import { getAccessToken, refreshAccessToken } from '../utils/authUtils';
 
 const Add = () => {
   const [image1, setImage1] = useState(null);
@@ -12,18 +13,24 @@ const Add = () => {
   const [oldPrice, setOldPrice] = useState("");
   const [category, setCategory] = useState("Accessories");
   const [color, setColor] = useState("Black");
+  const [isLoading, setIsLoading] = useState(false);
 
   const onSubmitHandler = async (e) => {
     e.preventDefault();
-
-    const token = localStorage.getItem("token");
-    console.log("Retrieved token:", token);
-    if (!token) {
-      console.error("No token found, user might not be authenticated.");
-      return;
-    }
+    setIsLoading(true);
 
     try {
+      // Force token refresh before submission
+      const newToken = await refreshAccessToken();
+      
+      if (!newToken) {
+        toast.error("Authentication error. Please login again.");
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+        return;
+      }
+
       const formData = new FormData();
       formData.append("name", name);
       formData.append("description", description);
@@ -33,6 +40,8 @@ const Add = () => {
       formData.append("color", color);
       formData.append("image1", image1);
 
+      console.log("Submitting product with token:", newToken);
+
       // Send data using Axios with Authorization header
       const response = await axios.post(
         `${backendUrl}/api/products/create-product`, 
@@ -40,24 +49,43 @@ const Add = () => {
         {
           headers: {
             "Content-Type": "multipart/form-data",
-            Authorization: `Bearer ${token}`, // Pass the token in the Authorization header
+            Authorization: `Bearer ${newToken}`,
           },
           withCredentials: true,
         }
       );
+
       if (response.data && response.data._id) {
-        toast.success("Product added successfully!")
-        setName('')
-        setDescription('')
-        setImage1(null)
-        setPrice('')
-        setOldPrice('')
+        toast.success("Product added successfully!");
+        
+        // Reset form fields
+        setName('');
+        setDescription('');
+        setImage1(null);
+        setPrice('');
+        setOldPrice('');
+        
+        // Redirect to products list after a short delay
+        setTimeout(() => {
+          window.location.href = '/list-items';
+        }, 1500);
       } else {
-        toast.error(response.data.message || "Something went wrong")
+        toast.error(response.data.message || "Something went wrong");
       }
     } catch (error) {
-      console.log(error);
-      toast.error(error.message)
+      console.error("Error adding product:", error);
+      
+      // Check if token expired
+      if (error.response && error.response.status === 401) {
+        toast.error("Session expired. Please login again.");
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      } else {
+        toast.error(error.response?.data?.message || error.message || "Failed to add product");
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -86,7 +114,7 @@ const Add = () => {
       <div className='flex flex-col sm:flex-row gap-2 w-full sm:gap-8'>
         <div>
           <p className='mb-2'>Product Category</p>
-          <select onChange={(e) => setCategory(e.target.value)} className='w-full px-3 py-2'>
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className='w-full px-3 py-2'>
             <option value="Accessories">Accessories</option>
             <option value="Dress">Dress</option>
             <option value="Footwear">Footwear</option>
@@ -96,7 +124,7 @@ const Add = () => {
 
         <div>
           <p className='mb-2'>Product Price</p>
-          <input onChange={(e) => setPrice(e.target.value)} value={price} className='w-full px-3 py-2 sm:w-[120px]' type='Number' placeholder='25' />
+          <input onChange={(e) => setPrice(e.target.value)} value={price} className='w-full px-3 py-2 sm:w-[120px]' type='Number' placeholder='25' required />
         </div>
 
         <div>
@@ -107,7 +135,7 @@ const Add = () => {
 
       <div className='w-full'>
         <p className='mb-2'>Product Color</p>
-        <select onChange={(e) => setColor(e.target.value)} className='w-full max-w-[500px] px-3 py-2'>
+        <select value={color} onChange={(e) => setColor(e.target.value)} className='w-full max-w-[500px] px-3 py-2'>
           <option value="Black">Black</option>
           <option value="Blue">Blue</option>
           <option value="Green">Green</option>
@@ -118,7 +146,9 @@ const Add = () => {
         </select>
       </div>
 
-      <button type='Submit' className='w-28 py-3 mt-4 bg-black text-white'>ADD</button>
+      <button type='Submit' disabled={isLoading} className={`w-28 py-3 mt-4 bg-black text-white ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+        {isLoading ? 'Adding...' : 'ADD'}
+      </button>
     </form>
   );
 };

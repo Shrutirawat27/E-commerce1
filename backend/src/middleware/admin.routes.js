@@ -50,18 +50,75 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ message: 'Incorrect password' });
         }
 
-        // Create a JWT token
+        // Get refresh token secret
+        const refreshSecret = process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET_KEY + '_refresh';
+
+        // Create access token (short-lived)
         const token = jwt.sign(
             { userId: user._id, role: user.role },
             process.env.JWT_SECRET_KEY,
-            { expiresIn: '1h' } // Token expiration time
+            { expiresIn: '24h' } // Extended token expiration time
         );
 
-        // Return the token
-        res.json({ token });
+        // Create refresh token (long-lived)
+        const refreshToken = jwt.sign(
+            { userId: user._id, role: user.role },
+            refreshSecret,
+            { expiresIn: '7d' } // 7 days
+        );
+
+        // Return both tokens
+        res.json({ token, refreshToken });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Refresh token route
+router.post('/refresh-token', async (req, res) => {
+    try {
+        const { refreshToken } = req.body;
+        
+        if (!refreshToken) {
+            return res.status(401).json({ message: 'Refresh token is required' });
+        }
+        
+        // Get refresh token secret
+        const refreshSecret = process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET_KEY + '_refresh';
+        
+        // Verify the refresh token
+        const decoded = jwt.verify(refreshToken, refreshSecret);
+        
+        // Find the user
+        const user = await User.findById(decoded.userId);
+        if (!user || user.role !== 'admin') {
+            return res.status(404).json({ message: 'Admin user not found' });
+        }
+        
+        // Create new tokens
+        const token = jwt.sign(
+            { userId: user._id, role: user.role },
+            process.env.JWT_SECRET_KEY,
+            { expiresIn: '24h' }
+        );
+        
+        const newRefreshToken = jwt.sign(
+            { userId: user._id, role: user.role },
+            refreshSecret,
+            { expiresIn: '7d' }
+        );
+        
+        // Return the new tokens
+        res.json({ token, refreshToken: newRefreshToken });
+    } catch (error) {
+        console.error('Error refreshing token:', error);
+        
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({ message: 'Refresh token has expired, please login again' });
+        }
+        
+        res.status(401).json({ message: 'Invalid refresh token' });
     }
 });
 
@@ -86,7 +143,16 @@ const authenticateAdmin = (req, res, next) => {
 
         next();
     } catch (error) {
-        console.error(error);
+        console.error("Admin auth error:", error);
+        
+        // Check if token is expired
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({ 
+                message: 'Token has expired', 
+                needsRefresh: true 
+            });
+        }
+        
         res.status(401).json({ message: 'Invalid token' });
     }
 };

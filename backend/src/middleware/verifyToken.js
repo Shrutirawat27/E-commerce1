@@ -20,7 +20,7 @@ const verifyToken = (req, res, next) => {
         console.log("Decoded Token:", decoded);  // Log the decoded token to check its content
 
         req.user = {
-            _id: decoded.userId,  // Ensure _id is available
+            _id: decoded.userId || decoded.id,  // Support both formats
             role: decoded.role
         };
         req.role = decoded.role;
@@ -31,7 +31,11 @@ const verifyToken = (req, res, next) => {
         console.error("Token Verification Error:", error);
         
         if (error.name === 'TokenExpiredError') {
-            return res.status(401).send({ message: "Token has expired" });
+            // Instead of just returning an error, include a flag that indicates refresh is needed
+            return res.status(401).send({ 
+                message: "Token has expired", 
+                needsRefresh: true 
+            });
         }
         if (error.name === 'JsonWebTokenError') {
             return res.status(401).send({ message: "Invalid token" });

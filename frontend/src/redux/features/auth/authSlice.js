@@ -18,10 +18,17 @@ const authSlice = createSlice({
         setUser: (state, action) => {
             state.user = action.payload.user;
             localStorage.setItem("user", JSON.stringify(state.user));
+            
+            // Also store userId separately for easier access
+            if (action.payload.user && action.payload.user._id) {
+                localStorage.setItem("userId", action.payload.user._id);
+                console.log("Stored userId in localStorage:", action.payload.user._id);
+            }
         },
         logout: (state) => {
             state.user = null;
             localStorage.removeItem("user");
+            localStorage.removeItem("userId");
             localStorage.removeItem("token");
             localStorage.removeItem("refreshToken");
         }

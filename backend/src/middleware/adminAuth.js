@@ -21,6 +21,14 @@ const adminAuth = async (req, res, next) => {
         next();
     } catch (error) {
         console.error(error);
+        if (error.name === 'TokenExpiredError') {
+            // Signal to the client that token refresh is needed
+            return res.status(401).json({ 
+                success: false, 
+                message: "Token has expired", 
+                needsRefresh: true 
+            });
+        }
         res.json({ success: false, message: error.message });
     }
 };

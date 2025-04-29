@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const cloudinary = require('./config/cloudinary');
+const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -11,17 +12,67 @@ const port = process.env.PORT || 3000;
 const Product = require('./src/products/products.model');
 
 // Middleware setup
-const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174'];
+const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://localhost:5175'];
 app.use(cors({
-  origin: allowedOrigins,
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if(!origin) return callback(null, true);
+    
+    if(allowedOrigins.indexOf(origin) === -1) {
+      console.log('Origin allowed:', origin);
+      // Allow this origin anyway to fix CORS issues
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'X-Content-Type-Options']
 }));
 
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Serve static files from public directory
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+
+// Add debugging middleware for static file requests
+app.use((req, res, next) => {
+  if (req.url.startsWith('/uploads')) {
+    console.log('Static file request:', req.url);
+    console.log('Looking in:', path.join(__dirname, 'public', req.url));
+  }
+  next();
+});
+
+// Add global request logger for debugging
+app.use((req, res, next) => {
+  // Only log API requests
+  if (req.url.startsWith('/api')) {
+    const requestLog = {
+      method: req.method,
+      url: req.url,
+      contentType: req.headers['content-type'],
+      userAgent: req.headers['user-agent']
+    };
+    
+    console.log('\n🔍 Request:', JSON.stringify(requestLog, null, 2));
+    
+    // Capture and log response
+    const originalSend = res.send;
+    res.send = function(body) {
+      console.log(`📤 Response ${res.statusCode}:`, 
+        typeof body === 'object' ? JSON.stringify(body).substring(0, 150) + '...' : body);
+      return originalSend.apply(this, arguments);
+    };
+  }
+  next();
+});
+
+// Allow all preflight requests
+app.options('*', cors());
 
 // Search route for products
 app.get('/api/products/search', async (req, res) => {

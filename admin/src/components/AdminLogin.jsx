@@ -21,9 +21,17 @@ const AdminLogin = () => {
                 throw new Error(data.message || 'Invalid credentials');
             }
 
-            setMessage({ type: 'success', text: 'Login successful!' });
-            // You can also store the token here in localStorage or as a state
-            localStorage.setItem('admin_token', data.token);
+            if (data.success) {
+                setMessage({ type: 'success', text: 'Login successful!' });
+                // Store both access token and refresh token
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('refreshToken', data.refreshToken);
+                
+                // Redirect to admin dashboard or another page
+                window.location.href = '/';
+            } else {
+                setMessage({ type: 'error', text: data.message || 'Invalid credentials' });
+            }
         } catch (error) {
             console.error('Error:', error);
             setMessage({ type: 'error', text: error.message || 'An error occurred. Please try again later.' });

@@ -6,22 +6,35 @@ import { toast } from 'react-toastify';
 const Login = ({ setToken }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const onSubmitHandler = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+
     try {
-      e.preventDefault();
       const response = await axios.post(backendUrl + '/api/admin/login', { email, password });
 
-      // If login is successful, set the token in localStorage and state
+      // If login is successful, set the tokens in localStorage
       if (response.data.token) {
+        // Store both tokens
         localStorage.setItem('token', response.data.token);
+        
+        if (response.data.refreshToken) {
+          localStorage.setItem('refreshToken', response.data.refreshToken);
+          console.log("Refresh token stored:", response.data.refreshToken);
+        }
+        
         setToken(response.data.token); // Set token using the prop setToken
+        toast.success("Login successful!");
       } else {
-        toast.error(response.data.message)
+        toast.error(response.data.message || "Login failed");
       }
     } catch (error) {
       console.error('Login failed:', error);
-      toast.error(error.message)
+      toast.error(error.response?.data?.message || error.message || "Login failed");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -52,8 +65,12 @@ const Login = ({ setToken }) => {
               required
             />
           </div>
-          <button className="mt-2 w-full py-2 px-4 rounded-md text-white bg-black" type="submit">
-            Login
+          <button 
+            className={`mt-2 w-full py-2 px-4 rounded-md text-white bg-black ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`} 
+            type="submit"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Logging in...' : 'Login'}
           </button>
         </form>
       </div>
